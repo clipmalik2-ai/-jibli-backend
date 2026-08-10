@@ -10,6 +10,28 @@ router.use(requireAuth, requireAdmin);
 // except REJECTED which can happen from PENDING (payment didn't match).
 const STAGE_ORDER = ["PENDING", "PAID", "BOUGHT", "SHIPPED", "ARRIVED", "DELIVERED"];
 
+// ---- List signed-up accounts (buyers) ----
+router.get("/users", async (req, res) => {
+  const { query } = req.query;
+  const users = await prisma.user.findMany({
+    where: query
+      ? {
+          OR: [
+            { phone: { contains: String(query) } },
+            { name: { contains: String(query) } },
+          ],
+        }
+      : undefined,
+    select: {
+      id: true, phone: true, name: true, role: true, language: true,
+      address: true, postalCode: true, createdAt: true,
+      _count: { select: { orders: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ users });
+});
+
 // ---- List orders (with optional stage filter + search) ----
 router.get("/orders", async (req, res) => {
   const { stage, query } = req.query;
