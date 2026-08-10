@@ -1,0 +1,112 @@
+// Jibli backend data model.
+// SQLite by default for easy local setup — swap provider to "postgresql"
+// and set DATABASE_URL to a Postgres connection string for production
+// (e.g. Supabase, Railway, Render Postgres).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  ADMIN
+}
+
+enum OrderStage {
+  PENDING     // buyer submitted, payment not yet verified
+  PAID        // payment verified, waiting to be purchased
+  BOUGHT      // purchased on AliExpress/Temu
+  SHIPPED     // shipped from source
+  ARRIVED     // arrived in Algeria
+  DELIVERED   // delivered / ready for pickup
+  REJECTED    // payment rejected / order cancelled
+}
+
+model User {
+  id          String   @id @default(cuid())
+  phone       String   @unique // Algerian phone, e.g. +213661223412
+  name        String?
+  passwordHash String
+  role        Role     @default(BUYER)
+  language    String   @default("fr") // fr | ar | en, buyer's app language
+
+  // Default delivery info, pre-fills the order form on both the website
+  // and the app. Each order still stores its own snapshot below, so
+  // editing a saved address here never changes a past order's delivery info.
+  address     String?
+  postalCode  String?
+
+  createdAt   DateTime @default(now())
+  orders      Order[]
+}
+
+// Snapshot of the DZD/USD rate at a point in time.
+// New rates are appended, never edited — orders reference the rate
+// that was active when they were created, so past totals never change
+// retroactively when the admin updates today's rate.
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  rateDZD   Float    // DZD per 1 USD
+  setAt     DateTime @default(now())
+  orders    Order[]
+}
+
+// Single-row table for settings that don't need history (unlike the rate).
+model Settings {
+  id           Int   @id @default(1)
+  feePercent   Float @default(15)   // service fee, % of product price in DZD
+  shippingDZD  Float @default(1400) // default shipping estimate shown before an order is created
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  reference       String       @unique // shown to buyer + used to match BaridiMob transfer, e.g. JB-4512
+  buyer           User         @relation(fields: [buyerId], references: [id])
+  buyerId         String
+
+  productUrl      String
+  productTitle    String
+  productSource   String       // "AliExpress" | "Temu" | other
+  priceUSD        Float
+
+  // Delivery info snapshotted at order creation — if the buyer updates
+  // their saved address later, this order keeps the address it shipped to.
+  recipientName   String
+  address         String
+  postalCode      String
+
+  exchangeRate    ExchangeRate @relation(fields: [exchangeRateId], references: [id])
+  exchangeRateId  String
+  feePercent      Float        // fee % locked in at order creation time
+  shippingDZD     Float
+
+  productDZD      Float        // priceUSD * exchangeRate.rateDZD, computed at creation
+  feeDZD          Float        // productDZD * feePercent / 100
+  totalDZD        Float        // productDZD + feeDZD + shippingDZD
+
+  stage           OrderStage   @default(PENDING)
+  paymentProofUrl String?      // uploaded screenshot
+  adminNote       String?      // e.g. reason for rejection
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  stageHistory    OrderStageEvent[]
+}
+
+// Audit trail: every stage transition, who did it and when.
+// This is what powers the postal "stamp" timeline in the app —
+// and gives you a record if a buyer disputes a status.
+model OrderStageEvent {
+  id        String     @id @default(cuid())
+  order     Order      @relation(fields: [orderId], references: [id])
+  orderId   String
+  stage     OrderStage
+  note      String?
+  createdAt DateTime   @default(now())
+}
