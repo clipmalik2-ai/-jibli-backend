@@ -24,6 +24,7 @@ const createOrderSchema = z.object({
   productTitle: z.string().min(1),
   productSource: z.string().min(1), // "AliExpress" | "Temu" | ...
   priceUSD: z.number().positive(),
+  sourceShippingUSD: z.number().nonnegative().optional(), // buyer-entered, 0 if free shipping shown on the source site
   shippingDZD: z.number().nonnegative().optional(),
   recipientName: z.string().min(2).optional(),
   address: z.string().min(3).optional(),
@@ -35,6 +36,7 @@ router.post("/", requireAuth, async (req, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const { productUrl, productTitle, productSource, priceUSD, shippingDZD } = parsed.data;
+  const sourceShippingUSD = parsed.data.sourceShippingUSD || 0;
 
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
@@ -60,8 +62,9 @@ router.post("/", requireAuth, async (req, res) => {
   const feePercent = settings?.feePercent ?? 15;
   const shipping = shippingDZD ?? settings?.shippingDZD ?? 1400;
   const productDZD = round2(priceUSD * rate.rateDZD);
+  const sourceShippingDZD = round2(sourceShippingUSD * rate.rateDZD);
   const feeDZD = round2(productDZD * (feePercent / 100));
-  const totalDZD = round2(productDZD + feeDZD + shipping);
+  const totalDZD = round2(productDZD + sourceShippingDZD + feeDZD + shipping);
 
   // Reference codes must be unique; retry on the rare collision.
   let reference;
@@ -83,6 +86,7 @@ router.post("/", requireAuth, async (req, res) => {
       productTitle,
       productSource,
       priceUSD,
+      sourceShippingUSD,
       recipientName,
       address,
       wilaya,
@@ -91,6 +95,7 @@ router.post("/", requireAuth, async (req, res) => {
       feePercent,
       shippingDZD: shipping,
       productDZD,
+      sourceShippingDZD,
       feeDZD,
       totalDZD,
       stage: "PENDING",
