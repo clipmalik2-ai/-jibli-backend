@@ -27,6 +27,7 @@ const createOrderSchema = z.object({
   shippingDZD: z.number().nonnegative().optional(),
   recipientName: z.string().min(2).optional(),
   address: z.string().min(3).optional(),
+  wilaya: z.string().min(2).optional(),
   postalCode: z.string().min(3).optional(),
 });
 
@@ -42,10 +43,11 @@ router.post("/", requireAuth, async (req, res) => {
   // before an order can be created, since we can't ship without it.
   const recipientName = parsed.data.recipientName || user?.name;
   const address = parsed.data.address || user?.address;
+  const wilaya = parsed.data.wilaya || user?.wilaya;
   const postalCode = parsed.data.postalCode || user?.postalCode;
-  if (!recipientName || !address || !postalCode) {
+  if (!recipientName || !address || !wilaya || !postalCode) {
     return res.status(400).json({
-      error: "Missing delivery info: full name, address, and postal code are required",
+      error: "Missing delivery info: full name, address, wilaya, and postal code are required",
     });
   }
 
@@ -83,6 +85,7 @@ router.post("/", requireAuth, async (req, res) => {
       priceUSD,
       recipientName,
       address,
+      wilaya,
       postalCode,
       exchangeRateId: rate.id,
       feePercent,
