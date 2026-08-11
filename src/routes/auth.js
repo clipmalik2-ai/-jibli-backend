@@ -87,6 +87,7 @@ router.get("/me", requireAuth, async (req, res) => {
 const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
   address: z.string().min(3).optional(),
+  wilaya: z.string().min(2).optional(),
   postalCode: z.string().min(3).optional(),
   language: z.enum(["fr", "ar", "en"]).optional(),
 });
