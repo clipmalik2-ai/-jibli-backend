@@ -39,6 +39,7 @@ model User {
   // and the app. Each order still stores its own snapshot below, so
   // editing a saved address here never changes a past order's delivery info.
   address     String?
+  wilaya      String?
   postalCode  String?
 
   createdAt   DateTime @default(now())
@@ -78,6 +79,7 @@ model Order {
   // their saved address later, this order keeps the address it shipped to.
   recipientName   String
   address         String
+  wilaya          String
   postalCode      String
 
   exchangeRate    ExchangeRate @relation(fields: [exchangeRateId], references: [id])
