@@ -74,6 +74,7 @@ model Order {
   productTitle    String
   productSource   String       // "AliExpress" | "Temu" | other
   priceUSD        Float
+  sourceShippingUSD Float      @default(0) // shipping cost shown on AliExpress/Temu, buyer-entered, 0 if free
 
   // Delivery info snapshotted at order creation — if the buyer updates
   // their saved address later, this order keeps the address it shipped to.
@@ -88,6 +89,7 @@ model Order {
   shippingDZD     Float
 
   productDZD      Float        // priceUSD * exchangeRate.rateDZD, computed at creation
+  sourceShippingDZD Float      @default(0) // sourceShippingUSD * exchangeRate.rateDZD, computed at creation
   feeDZD          Float        // productDZD * feePercent / 100
   totalDZD        Float        // productDZD + feeDZD + shippingDZD
 
