@@ -7,6 +7,7 @@ const authRoutes = require("./routes/auth");
 const orderRoutes = require("./routes/orders");
 const adminRoutes = require("./routes/admin");
 const publicRoutes = require("./routes/public");
+const messageRoutes = require("./routes/messages");
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use("/auth", authRoutes);
 app.use("/orders", orderRoutes);
 app.use("/admin", adminRoutes);
 app.use("/public", publicRoutes);
+app.use("/messages", messageRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
