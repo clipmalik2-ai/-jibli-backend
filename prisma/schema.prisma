@@ -44,6 +44,19 @@ model User {
 
   createdAt   DateTime @default(now())
   orders      Order[]
+  messages    Message[]
+}
+
+// One implicit conversation thread per buyer, shared with the admin —
+// simple enough for a single-admin support inbox. Polled by the client
+// rather than pushed over a socket, since the traffic here is low.
+model Message {
+  id         String   @id @default(cuid())
+  buyer      User     @relation(fields: [buyerId], references: [id])
+  buyerId    String
+  senderRole String   // "BUYER" | "ADMIN"
+  content    String
+  createdAt  DateTime @default(now())
 }
 
 // Snapshot of the DZD/USD rate at a point in time.
