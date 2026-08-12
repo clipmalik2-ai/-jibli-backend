@@ -10,6 +10,56 @@ router.use(requireAuth, requireAdmin);
 // except REJECTED which can happen from PENDING (payment didn't match).
 const STAGE_ORDER = ["PENDING", "PAID", "BOUGHT", "SHIPPED", "ARRIVED", "DELIVERED"];
 
+// ---- Chat: list conversations (most recent message per buyer) ----
+router.get("/conversations", async (req, res) => {
+  // Simple approach for a single-admin inbox: pull recent messages,
+  // then keep only the newest one per buyer. Fine at this scale —
+  // revisit with a proper GROUP BY if the message volume grows a lot.
+  const recent = await prisma.message.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 500,
+    include: { buyer: { select: { id: true, name: true, phone: true } } },
+  });
+  const seen = new Set();
+  const conversations = [];
+  for (const m of recent) {
+    if (seen.has(m.buyerId)) continue;
+    seen.add(m.buyerId);
+    conversations.push({
+      buyerId: m.buyerId,
+      buyerName: m.buyer?.name,
+      buyerPhone: m.buyer?.phone,
+      lastMessage: m.content,
+      lastMessageAt: m.createdAt,
+      lastSenderRole: m.senderRole,
+    });
+  }
+  res.json({ conversations });
+});
+
+// ---- Chat: thread with one buyer ----
+router.get("/messages/:buyerId", async (req, res) => {
+  const messages = await prisma.message.findMany({
+    where: { buyerId: req.params.buyerId },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json({ messages });
+});
+
+const adminSendSchema = z.object({ content: z.string().min(1).max(2000) });
+router.post("/messages/:buyerId", async (req, res) => {
+  const parsed = adminSendSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const buyer = await prisma.user.findUnique({ where: { id: req.params.buyerId } });
+  if (!buyer) return res.status(404).json({ error: "Buyer not found" });
+
+  const message = await prisma.message.create({
+    data: { buyerId: req.params.buyerId, senderRole: "ADMIN", content: parsed.data.content },
+  });
+  res.status(201).json({ message });
+});
+
 // ---- List signed-up accounts (buyers) ----
 router.get("/users", async (req, res) => {
   const { query } = req.query;
@@ -24,7 +74,7 @@ router.get("/users", async (req, res) => {
       : undefined,
     select: {
       id: true, phone: true, name: true, role: true, language: true,
-      address: true, postalCode: true, createdAt: true,
+      address: true, wilaya: true, postalCode: true, createdAt: true,
       _count: { select: { orders: true } },
     },
     orderBy: { createdAt: "desc" },
