@@ -5,6 +5,7 @@ const { z } = require("zod");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { generateReference } = require("../lib/reference");
+const { sendAdminOrderEmail } = require("../lib/email");
 
 const router = express.Router();
 
@@ -104,6 +105,10 @@ router.post("/", requireAuth, async (req, res) => {
   });
 
   res.status(201).json({ order, baridimobNumber: process.env.BARIDIMOB_NUMBER });
+
+  // Fire-and-forget: don't make the buyer wait on email delivery, and
+  // never let a notification failure affect the order response above.
+  sendAdminOrderEmail(order).catch(() => {});
 });
 
 // ---- Upload payment proof screenshot ----
